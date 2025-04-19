@@ -1,4 +1,12 @@
 import Config
+import Dotenvy
+
+# 環境変数ファイルの読み込み設定
+env_dir_prefix = Path.expand("./envs")
+source!([
+  Path.absname(".env", env_dir_prefix),
+  System.get_env()
+])
 
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the

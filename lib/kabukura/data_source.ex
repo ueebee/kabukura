@@ -6,12 +6,12 @@ defmodule Kabukura.DataSource do
     field :name, :string
     field :description, :string
     field :provider_type, :string
-    field :is_enabled, :boolean, default: false
+    field :is_enabled, :boolean, default: true
     field :base_url, :string
     field :api_version, :string
-    field :rate_limit_per_minute, :integer
-    field :rate_limit_per_hour, :integer
-    field :rate_limit_per_day, :integer
+    field :rate_limit_per_minute, :integer, default: 60
+    field :rate_limit_per_hour, :integer, default: 3600
+    field :rate_limit_per_day, :integer, default: 86400
     field :encrypted_credentials, :binary
     field :refresh_token, :string
     field :refresh_token_expired_at, :utc_datetime
