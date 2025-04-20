@@ -5,78 +5,36 @@ defmodule Kabukura.Auth.JQuantsStrategy do
 
   @behaviour Kabukura.Auth.Strategy
 
-  alias Kabukura.DataSource
   alias Kabukura.DataSources.JQuants.Auth
-  alias Kabukura.Repo
-
-  # トークンの有効期間（秒）
-  @refresh_token_expiry 7 * 24 * 60 * 60  # 1週間
-  @id_token_expiry 24 * 60 * 60  # 24時間
 
   @doc """
   J-Quants APIのリフレッシュトークンを取得します。
-  既存のトークンが有効な場合はそれを返し、無効な場合は新しいトークンを取得します。
 
   ## パラメータ
-    - `data_source`: データソースのスキーマ
+    - `credentials`: 認証情報（%{"mailaddress" => email, "password" => pass}）
 
   ## 戻り値
-    - `{:ok, refresh_token}` - 成功時
+    - `{:ok, %{refresh_token: refresh_token, expired_at: expired_at}}` - 成功時
     - `{:error, reason}` - 失敗時
   """
   @impl true
-  def get_refresh_token(data_source) do
-    credentials = DataSource.decrypt_credentials(data_source)
-    case Auth.get_refresh_token_from_encrypted(credentials) do
-      {:ok, %{refresh_token: refresh_token, expired_at: expired_at}} ->
-        case data_source
-            |> DataSource.changeset(%{
-              refresh_token: refresh_token,
-              refresh_token_expired_at: expired_at
-            })
-            |> Repo.update() do
-          {:ok, updated_data_source} -> {:ok, updated_data_source.refresh_token}
-          {:error, changeset} -> {:error, "Failed to update data source: #{inspect(changeset.errors)}"}
-        end
-
-      {:error, reason} ->
-        {:error, reason}
-    end
+  def get_refresh_token(credentials) do
+    Auth.get_refresh_token_from_encrypted(credentials)
   end
 
   @doc """
   J-Quants APIのIDトークンを取得します。
-  既存のトークンが有効な場合はそれを返し、無効な場合は新しいトークンを取得します。
 
   ## パラメータ
-    - `data_source`: データソースのスキーマ
+    - `refresh_token`: リフレッシュトークン
 
   ## 戻り値
-    - `{:ok, id_token}` - 成功時
+    - `{:ok, %{id_token: id_token, expired_at: expired_at}}` - 成功時
     - `{:error, reason}` - 失敗時
   """
   @impl true
-  def get_id_token(data_source) do
-    case data_source.refresh_token do
-      nil ->
-        {:error, "Refresh token is not set"}
-      refresh_token ->
-        case Auth.get_id_token(refresh_token) do
-          {:ok, %{id_token: id_token, expired_at: expired_at}} ->
-            case data_source
-                |> DataSource.changeset(%{
-                  id_token: id_token,
-                  id_token_expired_at: expired_at
-                })
-                |> Repo.update() do
-              {:ok, updated_data_source} -> {:ok, updated_data_source.id_token}
-              {:error, changeset} -> {:error, "Failed to update data source: #{inspect(changeset.errors)}"}
-            end
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-    end
+  def get_id_token(refresh_token) do
+    Auth.get_id_token(refresh_token)
   end
 
   @doc """

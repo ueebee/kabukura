@@ -8,25 +8,25 @@ defmodule Kabukura.Auth.Strategy do
   リフレッシュトークンを取得します。
 
   ## パラメータ
-    - `data_source`: データソースのスキーマ
+    - `credentials`: 認証情報（%{"mailaddress" => email, "password" => pass}）
 
   ## 戻り値
-    - `{:ok, refresh_token}` - 成功時
+    - `{:ok, %{refresh_token: refresh_token, expired_at: expired_at}}` - 成功時
     - `{:error, reason}` - 失敗時
   """
-  @callback get_refresh_token(data_source :: struct()) :: {:ok, String.t()} | {:error, any()}
+  @callback get_refresh_token(credentials :: map()) :: {:ok, %{refresh_token: String.t(), expired_at: DateTime.t()}} | {:error, any()}
 
   @doc """
   IDトークンを取得します。
 
   ## パラメータ
-    - `data_source`: データソースのスキーマ
+    - `refresh_token`: リフレッシュトークン
 
   ## 戻り値
-    - `{:ok, id_token}` - 成功時
+    - `{:ok, %{id_token: id_token, expired_at: expired_at}}` - 成功時
     - `{:error, reason}` - 失敗時
   """
-  @callback get_id_token(data_source :: struct()) :: {:ok, String.t()} | {:error, any()}
+  @callback get_id_token(refresh_token :: String.t()) :: {:ok, %{id_token: String.t(), expired_at: DateTime.t()}} | {:error, any()}
 
   @doc """
   トークンが有効かどうかを確認します。

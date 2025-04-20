@@ -12,37 +12,16 @@ defmodule Kabukura.DataSources.JQuants.HTTP do
 
   ## パラメータ
     - `path`: APIのエンドポイントパス
-    - `id_token`: 認証用のIDトークン
+    - `opts`: 追加オプション（オプション）
 
   ## 戻り値
     - `{:ok, response_body}` - 成功時
     - `{:error, reason}` - 失敗時
   """
-  def get(path, id_token) do
-    url = @base_url <> path
-    headers = [{"Authorization", "Bearer #{id_token}"}]
-
-    case Req.get(url, headers: headers) do
-      {:ok, %{status: 200, body: body}} ->
-        {:ok, body}
-
-      {:ok, %{status: 400, body: %{"message" => message}}} ->
-        {:error, message}
-
-      {:ok, %{status: 401, body: %{"message" => message}}} ->
-        {:error, message}
-
-      {:ok, %{status: 403, body: %{"message" => message}}} ->
-        {:error, message}
-
-      {:ok, %{status: 404, body: %{"message" => message}}} ->
-        {:error, message}
-
-      {:ok, %{status: 500, body: %{"message" => message}}} ->
-        {:error, message}
-
-      {:error, reason} ->
-        {:error, "HTTP request failed: #{inspect(reason)}"}
+  def get(path, opts \\ []) do
+    with {:ok, id_token} <- Kabukura.DataSources.JQuants.TokenStore.get_valid_id_token(),
+         {:ok, response} <- make_request(:get, path, nil, id_token, opts) do
+      {:ok, response}
     end
   end
 
@@ -51,7 +30,6 @@ defmodule Kabukura.DataSources.JQuants.HTTP do
 
   ## パラメータ
     - `path`: APIパス
-    - `id_token`: IDトークン
     - `body`: リクエストボディ
     - `opts`: 追加オプション（オプション）
 
@@ -59,38 +37,22 @@ defmodule Kabukura.DataSources.JQuants.HTTP do
     - `{:ok, response}` - 成功時
     - `{:error, reason}` - 失敗時
   """
-  def post(path, id_token, body, opts \\ []) do
+  def post(path, body, opts \\ []) do
+    with {:ok, id_token} <- Kabukura.DataSources.JQuants.TokenStore.get_valid_id_token(),
+         {:ok, response} <- make_request(:post, path, body, id_token, opts) do
+      {:ok, response}
+    end
+  end
+
+  # プライベート関数
+
+  defp make_request(method, path, body, id_token, opts) do
     url = @base_url <> path
     headers = build_headers(id_token)
     timeout = Keyword.get(opts, :timeout, @default_timeout)
     retries = Keyword.get(opts, :retries, @default_retries)
 
-    make_request(:post, url, body, headers, timeout, retries)
-  end
-
-  # プライベート関数
-
-  defp build_url(path, params) do
-    base = @base_url <> path
-    if Enum.empty?(params) do
-      base
-    else
-      query_string = URI.encode_query(params)
-      base <> "?" <> query_string
-    end
-  end
-
-  defp build_headers(id_token) do
-    [
-      {"Authorization", "Bearer #{id_token}"},
-      {"Content-Type", "application/json"}
-    ]
-  end
-
-  defp make_request(method, url, body, headers, timeout, retries) do
-    options = [timeout: timeout]
-
-    case Req.request(method, url, body: body, headers: headers, options: options) do
+    case Req.request(method, url, body: body, headers: headers, options: [timeout: timeout]) do
       {:ok, %{status: status, body: response_body}} when status in 200..299 ->
         case Jason.decode(response_body) do
           {:ok, decoded} -> {:ok, decoded}
@@ -118,11 +80,18 @@ defmodule Kabukura.DataSources.JQuants.HTTP do
       {:error, reason} ->
         if retries > 0 do
           :timer.sleep(1000)
-          make_request(method, url, body, headers, timeout, retries - 1)
+          make_request(method, url, body, id_token, Keyword.put(opts, :retries, retries - 1))
         else
           {:error, "HTTP request failed: #{inspect(reason)}"}
         end
     end
+  end
+
+  defp build_headers(id_token) do
+    [
+      {"Authorization", "Bearer #{id_token}"},
+      {"Content-Type", "application/json"}
+    ]
   end
 
   defp handle_error_response(response_body, default_message) do
