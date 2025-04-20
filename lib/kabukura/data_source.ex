@@ -2,6 +2,7 @@ defmodule Kabukura.DataSource do
   use Ecto.Schema
   import Ecto.Changeset
   alias Kabukura.Encryption
+  alias Kabukura.Auth.StrategyRegistry
   require Logger
 
   schema "data_sources" do
@@ -63,5 +64,43 @@ defmodule Kabukura.DataSource do
     decrypted = Encryption.decrypt(encrypted_data)
     Logger.debug("Decrypted data: #{inspect(decrypted)}")
     Jason.decode!(decrypted)
+  end
+
+  @doc """
+  リフレッシュトークンを取得します。
+  データソースプロバイダーの種類に応じて適切な認証ストラテジーを使用します。
+
+  ## パラメータ
+    - `data_source`: データソースのスキーマ
+
+  ## 戻り値
+    - `{:ok, refresh_token}` - 成功時
+    - `{:error, reason}` - 失敗時
+  """
+  def get_refresh_token(%__MODULE__{} = data_source) do
+    with {:ok, strategy} <- StrategyRegistry.get_strategy(data_source.provider_type) do
+      strategy.get_refresh_token(data_source)
+    else
+      {:error, :unsupported_provider} -> {:error, "Unsupported provider type: #{data_source.provider_type}"}
+    end
+  end
+
+  @doc """
+  IDトークンを取得します。
+  データソースプロバイダーの種類に応じて適切な認証ストラテジーを使用します。
+
+  ## パラメータ
+    - `data_source`: データソースのスキーマ
+
+  ## 戻り値
+    - `{:ok, id_token}` - 成功時
+    - `{:error, reason}` - 失敗時
+  """
+  def get_id_token(%__MODULE__{} = data_source) do
+    with {:ok, strategy} <- StrategyRegistry.get_strategy(data_source.provider_type) do
+      strategy.get_id_token(data_source)
+    else
+      {:error, :unsupported_provider} -> {:error, "Unsupported provider type: #{data_source.provider_type}"}
+    end
   end
 end

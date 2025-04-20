@@ -14,9 +14,9 @@ defmodule Kabukura.Repo.Migrations.CreateDataSources do
       add :rate_limit_per_day, :integer, null: false, default: 86400
 
       add :encrypted_credentials, :binary
-      add :refresh_token, :string
+      add :refresh_token, :text
       add :refresh_token_expired_at, :utc_datetime
-      add :id_token, :string
+      add :id_token, :text
       add :id_token_expired_at, :utc_datetime
 
       timestamps(type: :utc_datetime)

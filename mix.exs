@@ -58,7 +58,9 @@ defmodule Kabukura.MixProject do
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
       {:dotenv, "~> 3.1.0"},
-      {:jason, "~> 1.4.4"}
+      {:jason, "~> 1.4.4"},
+      {:req, "~> 0.5.10"},
+      {:bypass, "~> 2.1", only: :test}
     ]
   end
 

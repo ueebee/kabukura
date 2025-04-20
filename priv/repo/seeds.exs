@@ -27,9 +27,13 @@ require Logger
     rate_limit_per_minute: 60,
     rate_limit_per_hour: 3600,
     rate_limit_per_day: 86400,
+    # credentials: %{
+    #   email: System.get_env("SEED_JQUANTS_EMAIL") || (raise "SEED_JQUANTS_EMAIL environment variable is missing"),
+    #   password: System.get_env("SEED_JQUANTS_PASSWORD") || (raise "SEED_JQUANTS_PASSWORD environment variable is missing")
+    # }
     credentials: %{
-      email: System.get_env("SEED_JQUANTS_EMAIL") || (raise "SEED_JQUANTS_EMAIL environment variable is missing"),
-      password: System.get_env("SEED_JQUANTS_PASSWORD") || (raise "SEED_JQUANTS_PASSWORD environment variable is missing")
+      "mailaddress" => System.get_env("SEED_JQUANTS_EMAIL") || (raise "SEED_JQUANTS_EMAIL environment variable is missing"),
+      "password" => System.get_env("SEED_JQUANTS_PASSWORD") || (raise "SEED_JQUANTS_PASSWORD environment variable is missing")
     }
   })
   |> Repo.insert()
