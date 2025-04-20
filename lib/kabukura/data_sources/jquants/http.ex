@@ -52,7 +52,15 @@ defmodule Kabukura.DataSources.JQuants.HTTP do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
     retries = Keyword.get(opts, :retries, @default_retries)
 
-    case Req.request(method, url, body: body, headers: headers, options: [timeout: timeout]) do
+    request_opts = [
+      method: method,
+      url: url,
+      body: body,
+      headers: headers,
+      options: [timeout: timeout]
+    ]
+
+    case Req.request(request_opts) do
       {:ok, %{status: status, body: response_body}} when status in 200..299 ->
         case Jason.decode(response_body) do
           {:ok, decoded} -> {:ok, decoded}

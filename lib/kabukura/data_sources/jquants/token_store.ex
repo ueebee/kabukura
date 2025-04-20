@@ -101,19 +101,11 @@ defmodule Kabukura.DataSources.JQuants.TokenStore do
           {:error, reason} ->
             Logger.error("Failed to get id token: #{inspect(reason)}")
             {:error, "Failed to get id token: #{inspect(reason)}"}
-
-          other ->
-            Logger.error("Unexpected response from get_id_token: #{inspect(other)}")
-            {:error, "Unexpected response from get_id_token"}
         end
 
       {:error, reason} ->
         Logger.error("Failed to get refresh token: #{inspect(reason)}")
         {:error, "Failed to get refresh token: #{inspect(reason)}"}
-
-      other ->
-        Logger.error("Unexpected response from get_refresh_token: #{inspect(other)}")
-        {:error, "Unexpected response from get_refresh_token"}
     end
   end
 end
