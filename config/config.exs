@@ -5,6 +5,10 @@
 # is restricted to this project.
 
 # General application configuration
+
+# import Dotenv
+# Dotenv.load()
+
 import Config
 
 config :kabukura,

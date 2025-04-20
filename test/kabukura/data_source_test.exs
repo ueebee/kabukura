@@ -32,15 +32,15 @@ defmodule Kabukura.DataSourceTest do
       changeset = DataSource.changeset(%DataSource{}, @valid_attrs)
       assert changeset.valid?
 
-      assert get_change(changeset, :name) == "Test API"
-      assert get_change(changeset, :description) == "Test Description"
-      assert get_change(changeset, :provider_type) == "test"
-      assert get_change(changeset, :is_enabled) == true
-      assert get_change(changeset, :base_url) == "https://api.test.com/v1"
-      assert get_change(changeset, :api_version) == "v1"
-      assert get_change(changeset, :rate_limit_per_minute) == 30
-      assert get_change(changeset, :rate_limit_per_hour) == 1000
-      assert get_change(changeset, :rate_limit_per_day) == 10000
+      assert get_field(changeset, :name) == "Test API"
+      assert get_field(changeset, :description) == "Test Description"
+      assert get_field(changeset, :provider_type) == "test"
+      assert get_field(changeset, :is_enabled) == true
+      assert get_field(changeset, :base_url) == "https://api.test.com/v1"
+      assert get_field(changeset, :api_version) == "v1"
+      assert get_field(changeset, :rate_limit_per_minute) == 30
+      assert get_field(changeset, :rate_limit_per_hour) == 1000
+      assert get_field(changeset, :rate_limit_per_day) == 10000
     end
 
     test "changeset with invalid attributes" do
@@ -52,7 +52,7 @@ defmodule Kabukura.DataSourceTest do
 
     test "schema default values" do
       data_source = %DataSource{}
-      assert data_source.is_enabled == false
+      assert data_source.is_enabled == true
     end
 
     test "changeset with optional description" do
@@ -65,6 +65,35 @@ defmodule Kabukura.DataSourceTest do
       attrs = Map.drop(@valid_attrs, [:api_version])
       changeset = DataSource.changeset(%DataSource{}, attrs)
       assert changeset.valid?
+    end
+  end
+
+  describe "credentials handling" do
+    @credentials %{"email" => "test@example.com", "password" => "secret_password"}
+
+    test "handles nil credentials" do
+      attrs = Map.put(@valid_attrs, :credentials, nil)
+      changeset = DataSource.changeset(%DataSource{}, attrs)
+      assert changeset.valid?
+      assert get_change(changeset, :encrypted_credentials) == nil
+    end
+
+    test "decrypts credentials correctly" do
+      # まず暗号化されたデータソースを作成
+      attrs = Map.put(@valid_attrs, :credentials, @credentials)
+      {:ok, data_source} =
+        %DataSource{}
+        |> DataSource.changeset(attrs)
+        |> Repo.insert()
+
+      # 復号化して元の認証情報と一致することを確認
+      decrypted_credentials = DataSource.decrypt_credentials(data_source)
+      assert decrypted_credentials == @credentials
+    end
+
+    test "returns nil for nil encrypted_credentials" do
+      data_source = %DataSource{encrypted_credentials: nil}
+      assert DataSource.decrypt_credentials(data_source) == nil
     end
   end
 end
