@@ -3,9 +3,12 @@ defmodule Kabukura.DataSources.JQuants.HTTP do
   J-Quants APIへのHTTPリクエストを担当するモジュール
   """
 
-  @base_url "https://api.jquants.com/v1"
   @default_timeout 30_000
   @default_retries 3
+
+  defp base_url do
+    Application.get_env(:kabukura, :jquants_api_url, "https://api.jquants.com/v1")
+  end
 
   @doc """
   指定されたパスに対してGETリクエストを送信します。
@@ -47,7 +50,7 @@ defmodule Kabukura.DataSources.JQuants.HTTP do
   # プライベート関数
 
   defp make_request(method, path, body, id_token, opts) do
-    url = @base_url <> path
+    url = base_url() <> path
     headers = build_headers(id_token)
     timeout = Keyword.get(opts, :timeout, @default_timeout)
     retries = Keyword.get(opts, :retries, @default_retries)
