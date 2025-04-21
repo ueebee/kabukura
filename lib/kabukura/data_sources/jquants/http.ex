@@ -57,15 +57,13 @@ defmodule Kabukura.DataSources.JQuants.HTTP do
       url: url,
       body: body,
       headers: headers,
-      options: [timeout: timeout]
+      receive_timeout: timeout,
+      json: true
     ]
 
     case Req.request(request_opts) do
       {:ok, %{status: status, body: response_body}} when status in 200..299 ->
-        case Jason.decode(response_body) do
-          {:ok, decoded} -> {:ok, decoded}
-          {:error, reason} -> {:error, "Failed to decode response: #{reason}"}
-        end
+        {:ok, response_body}
 
       {:ok, %{status: 400, body: response_body}} ->
         handle_error_response(response_body, "Bad Request")
@@ -103,8 +101,8 @@ defmodule Kabukura.DataSources.JQuants.HTTP do
   end
 
   defp handle_error_response(response_body, default_message) do
-    case Jason.decode(response_body) do
-      {:ok, %{"message" => message}} -> {:error, message}
+    case response_body do
+      %{"message" => message} -> {:error, message}
       _ -> {:error, default_message}
     end
   end
