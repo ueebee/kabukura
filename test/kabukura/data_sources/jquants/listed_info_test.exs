@@ -3,6 +3,8 @@ defmodule Kabukura.DataSources.JQuants.ListedInfoTest do
   alias Kabukura.DataSources.JQuants.ListedInfo
   alias Kabukura.DataSources.JQuants.TokenStore
   alias Kabukura.DataSource
+  alias Kabukura.Company
+  alias Kabukura.Repo
 
   setup do
     bypass = Bypass.open()
@@ -10,6 +12,7 @@ defmodule Kabukura.DataSources.JQuants.ListedInfoTest do
 
     # 既存のデータソースを削除
     Repo.delete_all(DataSource)
+    Repo.delete_all(Company)
 
     # データソースを作成
     {:ok, data_source} =
@@ -40,7 +43,7 @@ defmodule Kabukura.DataSources.JQuants.ListedInfoTest do
   end
 
   describe "get_listed_info/1" do
-    test "successfully retrieves all listed info", %{bypass: bypass} do
+    test "successfully retrieves and saves all listed info", %{bypass: bypass} do
       Bypass.expect(bypass, "GET", "/listed/info", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -65,12 +68,19 @@ defmodule Kabukura.DataSources.JQuants.ListedInfoTest do
         }))
       end)
 
-      assert {:ok, [info]} = ListedInfo.get_listed_info()
-      assert info["Code"] == "86970"
-      assert info["CompanyName"] == "日本取引所グループ"
+      assert {:ok, companies} = ListedInfo.get_listed_info()
+      assert length(companies) == 1
+      assert companies |> List.first() |> Map.get(:code) == "86970"
+      assert companies |> List.first() |> Map.get(:name) == "日本取引所グループ"
+
+      # データベースに保存されていることを確認
+      db_companies = Repo.all(Company)
+      assert length(db_companies) == 1
+      assert db_companies |> List.first() |> Map.get(:code) == "86970"
+      assert db_companies |> List.first() |> Map.get(:name) == "日本取引所グループ"
     end
 
-    test "successfully retrieves info by code", %{bypass: bypass} do
+    test "successfully retrieves and saves info by code", %{bypass: bypass} do
       code = "86970"
 
       Bypass.expect(bypass, "GET", "/listed/info", fn conn ->
@@ -89,11 +99,17 @@ defmodule Kabukura.DataSources.JQuants.ListedInfoTest do
         }))
       end)
 
-      assert {:ok, [info]} = ListedInfo.get_listed_info_by_code(code)
-      assert info["Code"] == code
+      assert {:ok, companies} = ListedInfo.get_listed_info_by_code(code)
+      assert length(companies) == 1
+      assert companies |> List.first() |> Map.get(:code) == code
+
+      # データベースに保存されていることを確認
+      db_companies = Repo.all(Company)
+      assert length(db_companies) == 1
+      assert db_companies |> List.first() |> Map.get(:code) == code
     end
 
-    test "successfully retrieves info by date", %{bypass: bypass} do
+    test "successfully retrieves and saves info by date", %{bypass: bypass} do
       date = "2022-11-11"
 
       Bypass.expect(bypass, "GET", "/listed/info", fn conn ->
@@ -112,8 +128,14 @@ defmodule Kabukura.DataSources.JQuants.ListedInfoTest do
         }))
       end)
 
-      assert {:ok, [info]} = ListedInfo.get_listed_info_by_date(date)
-      assert info["Date"] == date
+      assert {:ok, companies} = ListedInfo.get_listed_info_by_date(date)
+      assert length(companies) == 1
+      assert companies |> List.first() |> Map.get(:effective_date) |> Date.to_string() == date
+
+      # データベースに保存されていることを確認
+      db_companies = Repo.all(Company)
+      assert length(db_companies) == 1
+      assert db_companies |> List.first() |> Map.get(:effective_date) |> Date.to_string() == date
     end
 
     test "returns error when API returns error", %{bypass: bypass} do
