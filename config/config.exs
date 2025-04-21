@@ -5,6 +5,10 @@
 # is restricted to this project.
 
 # General application configuration
+
+# import Dotenv
+# Dotenv.load()
+
 import Config
 
 config :kabukura,
@@ -34,7 +38,7 @@ config :kabukura, Kabukura.Mailer, adapter: Swoosh.Adapters.Local
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.17.11",
-  kabukura: [
+  default: [
     args:
       ~w(js/app.js --bundle --target=es2017 --outdir=../priv/static/assets --external:/fonts/* --external:/images/*),
     cd: Path.expand("../assets", __DIR__),
@@ -44,7 +48,7 @@ config :esbuild,
 # Configure tailwind (the version is required)
 config :tailwind,
   version: "3.4.3",
-  kabukura: [
+  default: [
     args: ~w(
       --config=tailwind.config.js
       --input=css/app.css
@@ -64,3 +68,6 @@ config :phoenix, :json_library, Jason
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
+
+# J-Quants API設定
+config :kabukura, :jquants_api_url, "https://api.jquants.com/v1"

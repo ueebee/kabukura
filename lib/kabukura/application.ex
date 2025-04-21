@@ -17,7 +17,8 @@ defmodule Kabukura.Application do
       # Start a worker by calling: Kabukura.Worker.start_link(arg)
       # {Kabukura.Worker, arg},
       # Start to serve requests, typically the last entry
-      KabukuraWeb.Endpoint
+      KabukuraWeb.Endpoint,
+      Kabukura.DataSources.JQuants.TokenStore
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

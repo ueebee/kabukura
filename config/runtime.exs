@@ -1,4 +1,9 @@
+if Mix.env() in [:dev, :test, :prod] do
+  Dotenv.load()
+end
+
 import Config
+
 
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
