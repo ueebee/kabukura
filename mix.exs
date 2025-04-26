@@ -60,7 +60,9 @@ defmodule Kabukura.MixProject do
       {:dotenv, "~> 3.1.0"},
       {:jason, "~> 1.4.4"},
       {:req, "~> 0.5.10"},
-      {:bypass, "~> 2.1", only: :test}
+      {:bypass, "~> 2.1", only: :test},
+      {:oban, "~> 2.19.4"},
+      {:crontab, "~> 1.1"}
     ]
   end
 

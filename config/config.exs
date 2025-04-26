@@ -71,3 +71,15 @@ import_config "#{config_env()}.exs"
 
 # J-Quants API設定
 config :kabukura, :jquants_api_url, "https://api.jquants.com/v1"
+
+# Oban設定
+config :kabukura, Oban,
+  repo: Kabukura.Repo,
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7}, # 1週間以上前のジョブを削除
+    {Oban.Plugins.Stager, interval: :timer.minutes(1)} # 1分ごとにジョブをステージング
+  ],
+  queues: [
+    jquants: 10,
+    default: 10
+  ]

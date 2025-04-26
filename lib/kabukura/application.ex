@@ -18,7 +18,8 @@ defmodule Kabukura.Application do
       # {Kabukura.Worker, arg},
       # Start to serve requests, typically the last entry
       KabukuraWeb.Endpoint,
-      Kabukura.DataSources.JQuants.TokenStore
+      Kabukura.DataSources.JQuants.TokenStore,
+      {Oban, Application.fetch_env!(:kabukura, Oban)}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
