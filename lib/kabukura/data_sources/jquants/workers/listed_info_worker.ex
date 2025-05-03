@@ -9,14 +9,14 @@ defmodule Kabukura.DataSources.JQuants.Workers.ListedInfoWorker do
   import Crontab.CronExpression
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: _args, meta: meta} = _job) do
+  def perform(%Oban.Job{args: _args, meta: meta, attempt: attempt, max_attempts: max_attempts} = _job) do
     Logger.info("Starting ListedInfoWorker at #{DateTime.utc_now()}")
 
     case ListedInfo.get_listed_info() do
       {:ok, companies} ->
         Logger.info("Successfully fetched #{length(companies)} companies")
-        # cronジョブの場合、次の実行をスケジュール
-        if meta["is_cron_job"] do
+        # 成功時はis_one_timeがfalseなら次のジョブをスケジュール
+        if meta["is_one_time"] == false do
           cron_expression = meta["cron_expression"]
           case Scheduler.schedule_listed_info_job_cron(cron_expression) do
             {:ok, _new_job} ->
@@ -28,6 +28,16 @@ defmodule Kabukura.DataSources.JQuants.Workers.ListedInfoWorker do
         :ok
       {:error, reason} ->
         Logger.error("Failed to fetch listed info: #{inspect(reason)}")
+        # 失敗時、is_one_timeがfalseかつリトライ上限到達時のみ次回スケジュール
+        if meta["is_one_time"] == false and attempt >= max_attempts do
+          cron_expression = meta["cron_expression"]
+          case Scheduler.schedule_listed_info_job_cron(cron_expression) do
+            {:ok, _new_job} ->
+              Logger.info("Cronジョブの次の実行をスケジュールしました: #{cron_expression}")
+            {:error, reason} ->
+              Logger.error("Cronジョブの次の実行のスケジュールに失敗しました: #{inspect(reason)}")
+          end
+        end
         {:error, reason}
     end
   end
