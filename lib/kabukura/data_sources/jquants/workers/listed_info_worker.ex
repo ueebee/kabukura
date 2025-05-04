@@ -6,7 +6,6 @@ defmodule Kabukura.DataSources.JQuants.Workers.ListedInfoWorker do
 
   alias Kabukura.DataSources.JQuants.{ListedInfo, Jobs.Scheduler}
   require Logger
-  import Crontab.CronExpression
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: _args, meta: meta, attempt: attempt, max_attempts: max_attempts} = _job) do
@@ -40,18 +39,6 @@ defmodule Kabukura.DataSources.JQuants.Workers.ListedInfoWorker do
         end
         {:error, reason}
     end
-  end
-
-  @impl Oban.Worker
-  def new(opts \\ []) do
-    Oban.Job.new(%{worker: __MODULE__}, opts)
-  end
-
-  @doc """
-  ジョブを作成します。
-  """
-  def create_job do
-    new() |> Oban.insert()
   end
 
   @doc """
