@@ -3,41 +3,80 @@ defmodule Kabukura.DataSources.JQuants.Workers.ListedInfoWorker do
   上場企業情報を定期的に取得するWorker
   """
   use Oban.Worker, queue: :jquants
+  @behaviour Kabukura.DataSources.JQuants.Workers.Common.WorkerBehaviour
 
   alias Kabukura.DataSources.JQuants.{ListedInfo, Jobs.Scheduler}
+  alias Kabukura.DataSources.JQuants.Workers.Common.{CronJobBuilder, JobLogger}
   require Logger
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: _args, meta: meta, attempt: attempt, max_attempts: max_attempts} = _job) do
-    Logger.info("Starting ListedInfoWorker at #{DateTime.utc_now()}")
+  def perform(%Oban.Job{args: _args, meta: meta, attempt: attempt, max_attempts: max_attempts, id: job_id} = _job) do
+    JobLogger.log_job_start(__MODULE__, job_id, _args)
 
+    with {:ok, companies} <- fetch_data(%{}),
+         :ok <- handle_result({:ok, companies}, meta, attempt, max_attempts) do
+      JobLogger.log_job_success(__MODULE__, job_id, %{companies_count: length(companies)})
+      :ok
+    else
+      {:error, reason} = error ->
+        JobLogger.log_job_error(__MODULE__, job_id, reason, attempt, max_attempts)
+        handle_result(error, meta, attempt, max_attempts)
+        error
+    end
+  end
+
+  @impl true
+  def validate_params(_args) do
+    {:ok, %{}}
+  end
+
+  @impl true
+  def fetch_data(_params) do
     case ListedInfo.get_listed_info() do
       {:ok, companies} ->
-        Logger.info("Successfully fetched #{length(companies)} companies")
-        # 成功時はis_one_timeがfalseなら次のジョブをスケジュール
-        if meta["is_one_time"] == false do
-          cron_expression = meta["cron_expression"]
-          case Scheduler.schedule_listed_info_job_cron(cron_expression) do
-            {:ok, _new_job} ->
-              Logger.info("Cronジョブの次の実行をスケジュールしました: #{cron_expression}")
-            {:error, reason} ->
-              Logger.error("Cronジョブの次の実行のスケジュールに失敗しました: #{inspect(reason)}")
-          end
-        end
-        :ok
+        {:ok, companies}
       {:error, reason} ->
-        Logger.error("Failed to fetch listed info: #{inspect(reason)}")
-        # 失敗時、is_one_timeがfalseかつリトライ上限到達時のみ次回スケジュール
-        if meta["is_one_time"] == false and attempt >= max_attempts do
-          cron_expression = meta["cron_expression"]
-          case Scheduler.schedule_listed_info_job_cron(cron_expression) do
-            {:ok, _new_job} ->
-              Logger.info("Cronジョブの次の実行をスケジュールしました: #{cron_expression}")
-            {:error, reason} ->
-              Logger.error("Cronジョブの次の実行のスケジュールに失敗しました: #{inspect(reason)}")
-          end
-        end
         {:error, reason}
+    end
+  end
+
+  @impl true
+  def normalize_opts(opts) do
+    case opts do
+      nil -> %{}
+      opts when is_list(opts) -> Map.new(opts)
+      opts when is_map(opts) -> opts
+    end
+  end
+
+  @impl true
+  def handle_result({:ok, _}, meta, _attempt, _max_attempts) do
+    if meta["is_one_time"] == false do
+      schedule_next_job(meta)
+    end
+    :ok
+  end
+
+  def handle_result({:error, reason}, meta, attempt, max_attempts) do
+    if meta["is_one_time"] == false and attempt >= max_attempts do
+      schedule_next_job(meta)
+    end
+    {:error, reason}
+  end
+
+  @impl true
+  def schedule_next_job(meta) do
+    cron_expression = meta["cron_expression"]
+    opts = normalize_opts(meta["opts"])
+    |> Enum.map(fn {k, v} -> {String.to_atom(k), v} end)  # マップをキーワードリストに変換
+
+    JobLogger.log_debug(__MODULE__, "Scheduling next cron job", %{opts: opts})
+
+    case Scheduler.schedule_listed_info_job_cron(cron_expression) do
+      {:ok, _new_job} ->
+        JobLogger.log_job_scheduled(__MODULE__, cron_expression, opts)
+      {:error, reason} ->
+        JobLogger.log_scheduling_error(__MODULE__, cron_expression, reason)
     end
   end
 
@@ -55,41 +94,6 @@ defmodule Kabukura.DataSources.JQuants.Workers.ListedInfoWorker do
     - `{:error, reason}` - 失敗時、エラー理由
   """
   def create_cron_job(cron_expression, opts \\ []) do
-    is_one_time = Keyword.get(opts, :is_one_time, false)
-
-    # cron式を解析して次の実行時間を計算
-    case Crontab.CronExpression.Parser.parse(cron_expression) do
-      {:ok, parsed_expression} ->
-        next_execution = Crontab.Scheduler.get_next_run_date!(parsed_expression, NaiveDateTime.utc_now())
-        |> DateTime.from_naive!("Etc/UTC")
-
-        # メタデータにcron情報を追加
-        job = new(
-          %{},  # 空のマップをargsとして渡す
-          [
-            scheduled_at: next_execution,
-            meta: %{
-              cron_expression: cron_expression,
-              is_cron_job: true,
-              is_one_time: is_one_time,
-              is_recurring: !is_one_time
-            }
-          ]
-        )
-
-        # ジョブを登録
-        case Oban.insert(job) do
-          {:ok, inserted_job} ->
-            schedule_type = if is_one_time, do: "1回限り", else: "定期的"
-            Logger.info("#{schedule_type}のジョブがスケジュールされました: Cron式 #{cron_expression}, Job ID #{inserted_job.id}")
-            {:ok, inserted_job}
-          {:error, changeset} ->
-            Logger.error("ジョブ投入エラー: #{inspect(changeset)}")
-            {:error, changeset}
-        end
-      {:error, reason} ->
-        Logger.error("Cron式のパースエラー: #{inspect(reason)}")
-        {:error, reason}
-    end
+    CronJobBuilder.create_cron_job(__MODULE__, cron_expression, %{}, opts)
   end
 end

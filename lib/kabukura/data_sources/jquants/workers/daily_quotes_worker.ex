@@ -3,99 +3,109 @@ defmodule Kabukura.DataSources.JQuants.Workers.DailyQuotesWorker do
   株価データを定期的に取得するWorker
   """
   use Oban.Worker, queue: :jquants
+  @behaviour Kabukura.DataSources.JQuants.Workers.Common.WorkerBehaviour
 
   alias Kabukura.DataSources.JQuants.{DailyQuotes, Jobs.Scheduler}
+  alias Kabukura.DataSources.JQuants.Workers.Common.{CronJobBuilder, JobLogger}
   require Logger
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: args, meta: meta, attempt: attempt, max_attempts: max_attempts} = job) do
-    Logger.info("Starting DailyQuotesWorker at #{DateTime.utc_now()}")
-    Logger.debug("Job details: #{inspect(job, pretty: true)}")
+  def perform(%Oban.Job{args: args, meta: meta, attempt: attempt, max_attempts: max_attempts, id: job_id} = job) do
+    JobLogger.log_job_start(__MODULE__, job_id, args)
+    JobLogger.log_debug(__MODULE__, "Job details", %{job: job})
 
-    with {:ok, params} <- extract_and_validate_params(args),
-         {:ok, _stock_prices} <- fetch_daily_quotes(params),
-         :ok <- handle_successful_fetch(meta, attempt, max_attempts) do
+    with {:ok, params} <- validate_params(args),
+         {:ok, stock_prices} <- fetch_data(params),
+         :ok <- handle_result({:ok, stock_prices}, meta, attempt, max_attempts) do
+      JobLogger.log_job_success(__MODULE__, job_id, %{prices_count: length(stock_prices)})
       :ok
     else
       {:error, reason} = error ->
-        handle_error(meta, attempt, max_attempts, reason)
+        JobLogger.log_job_error(__MODULE__, job_id, reason, attempt, max_attempts)
+        handle_result(error, meta, attempt, max_attempts)
         error
     end
   end
 
-  # パラメータの抽出と検証
-  defp extract_and_validate_params(args) do
-    Logger.debug("Args: #{inspect(args, pretty: true)}")
+  @impl true
+  def validate_params(args) do
+    JobLogger.log_debug(__MODULE__, "Validating parameters", %{args: args})
 
     # 引数からパラメータを取得
     inner_args = if Map.has_key?(args, "args"), do: Map.get(args, "args"), else: args
-    Logger.debug("Inner args: #{inspect(inner_args, pretty: true)}")
+    JobLogger.log_debug(__MODULE__, "Inner args", %{inner_args: inner_args})
 
     code = Map.get(inner_args, "code")
     from_date = Map.get(inner_args, "from")
     to_date = Map.get(inner_args, "to")
 
-    Logger.debug("Extracted params: code=#{code}, from=#{from_date}, to=#{to_date}")
+    JobLogger.log_debug(__MODULE__, "Extracted params", %{
+      code: code,
+      from: from_date,
+      to: to_date
+    })
 
     validate_required_params(code, from_date, to_date)
   end
 
-  # 株価データの取得
-  defp fetch_daily_quotes(%{code: code, from: from_date, to: to_date}) do
-    Logger.info("Fetching daily quotes for code=#{code}, from=#{from_date}, to=#{to_date}")
-    result = DailyQuotes.get_daily_quotes(code, from_date, to_date)
+  @impl true
+  def fetch_data(%{code: code, from: from_date, to: to_date}) do
+    JobLogger.log_debug(__MODULE__, "Fetching daily quotes", %{
+      code: code,
+      from: from_date,
+      to: to_date
+    })
 
-    case result do
+    case DailyQuotes.get_daily_quotes(code, from_date, to_date) do
       {:ok, stock_prices} ->
-        Logger.info("Successfully fetched #{length(stock_prices)} stock prices")
         {:ok, stock_prices}
       {:error, reason} ->
-        Logger.error("Failed to fetch daily quotes: #{inspect(reason)}")
         {:error, reason}
     end
   end
 
-  # 成功時の処理
-  defp handle_successful_fetch(meta, _attempt, _max_attempts) do
+  @impl true
+  def normalize_opts(opts) do
+    case opts do
+      nil -> %{}
+      opts when is_list(opts) -> Map.new(opts)
+      opts when is_map(opts) ->
+        case Map.get(opts, "period") do
+          "last_7_days" -> Map.put(opts, "period", :last_7_days)
+          "last_30_days" -> Map.put(opts, "period", :last_30_days)
+          _ -> opts
+        end
+    end
+  end
+
+  @impl true
+  def handle_result({:ok, _}, meta, _attempt, _max_attempts) do
     if meta["is_one_time"] == false do
       schedule_next_job(meta)
     end
     :ok
   end
 
-  # エラー時の処理
-  defp handle_error(meta, attempt, max_attempts, reason) do
-    Logger.error("Error occurred: #{inspect(reason)}")
-
+  def handle_result({:error, reason}, meta, attempt, max_attempts) do
     if meta["is_one_time"] == false and attempt >= max_attempts do
       schedule_next_job(meta)
     end
+    {:error, reason}
   end
 
-  # 次のジョブをスケジュールする
-  defp schedule_next_job(meta) do
+  @impl true
+  def schedule_next_job(meta) do
     cron_expression = meta["cron_expression"]
     opts = normalize_opts(meta["opts"])
     |> Enum.map(fn {k, v} -> {String.to_atom(k), v} end)  # マップをキーワードリストに変換
 
-    Logger.debug("Scheduling next cron job with opts: #{inspect(opts, pretty: true)}")
+    JobLogger.log_debug(__MODULE__, "Scheduling next cron job", %{opts: opts})
 
     case Scheduler.schedule_daily_quotes_job_cron(cron_expression, opts) do
       {:ok, _new_job} ->
-        Logger.info("Cronジョブの次の実行をスケジュールしました: #{cron_expression}")
+        JobLogger.log_job_scheduled(__MODULE__, cron_expression, opts)
       {:error, reason} ->
-        Logger.error("Cronジョブの次の実行のスケジュールに失敗しました: #{inspect(reason)}")
-    end
-  end
-
-  # オプションの正規化
-  defp normalize_opts(nil), do: %{}
-  defp normalize_opts(opts) when is_list(opts), do: Map.new(opts)
-  defp normalize_opts(opts) when is_map(opts) do
-    case Map.get(opts, "period") do
-      "last_7_days" -> Map.put(opts, "period", :last_7_days)
-      "last_30_days" -> Map.put(opts, "period", :last_30_days)
-      _ -> opts
+        JobLogger.log_scheduling_error(__MODULE__, cron_expression, reason)
     end
   end
 
@@ -119,9 +129,6 @@ defmodule Kabukura.DataSources.JQuants.Workers.DailyQuotesWorker do
     - `{:error, reason}` - 失敗時、エラー理由
   """
   def create_cron_job(cron_expression, opts \\ []) do
-    is_one_time = if is_list(opts), do: Keyword.get(opts, :is_one_time, false), else: Map.get(opts, "is_one_time", false)
-    _period = if is_list(opts), do: Keyword.get(opts, :period), else: Map.get(opts, "period")
-
     # オプションからパラメータを抽出
     code = if is_list(opts), do: Keyword.get(opts, :code), else: Map.get(opts, "code")
 
@@ -131,46 +138,10 @@ defmodule Kabukura.DataSources.JQuants.Workers.DailyQuotesWorker do
 
     # 必須パラメータのチェック
     with {:ok, _} <- validate_required_params(code, args["from"], args["to"]) do
-      # cron式を解析して次の実行時間を計算
-      case Crontab.CronExpression.Parser.parse(cron_expression) do
-        {:ok, parsed_expression} ->
-          next_execution = Crontab.Scheduler.get_next_run_date!(parsed_expression, NaiveDateTime.utc_now())
-          |> DateTime.from_naive!("Etc/UTC")
-
-          # メタデータにcron情報を追加
-          # キーワードリストをマップに変換
-          opts_map = if is_list(opts), do: Map.new(opts), else: opts
-          job = new(
-            %{args: args},  # argsを渡す
-            [
-              scheduled_at: next_execution,
-              meta: %{
-                cron_expression: cron_expression,
-                is_cron_job: true,
-                is_one_time: is_one_time,
-                is_recurring: !is_one_time,
-                opts: opts_map
-              }
-            ]
-          )
-
-          # ジョブを登録
-          case Oban.insert(job) do
-            {:ok, inserted_job} ->
-              schedule_type = if is_one_time, do: "1回限り", else: "定期的"
-              Logger.info("#{schedule_type}のジョブがスケジュールされました: Cron式 #{cron_expression}, Job ID #{inserted_job.id}")
-              {:ok, inserted_job}
-            {:error, changeset} ->
-              Logger.error("ジョブ投入エラー: #{inspect(changeset)}")
-              {:error, changeset}
-          end
-        {:error, reason} ->
-          Logger.error("Cron式のパースエラー: #{inspect(reason)}")
-          {:error, reason}
-      end
+      CronJobBuilder.create_cron_job(__MODULE__, cron_expression, args, opts)
     else
       {:error, reason} ->
-        Logger.error("Missing required parameters: #{inspect(reason)}")
+        JobLogger.log_job_error(__MODULE__, nil, reason, 1, 1)
         {:error, reason}
     end
   end
@@ -216,11 +187,11 @@ defmodule Kabukura.DataSources.JQuants.Workers.DailyQuotesWorker do
   defp validate_required_params(code, from_date, to_date) do
     cond do
       is_nil(code) ->
-        {:error, "銘柄コード（code）は必須です"}
+        {:error, "Stock code (code) is required"}
       is_nil(from_date) ->
-        {:error, "開始日（from）は必須です"}
+        {:error, "Start date (from) is required"}
       is_nil(to_date) ->
-        {:error, "終了日（to）は必須です"}
+        {:error, "End date (to) is required"}
       true ->
         {:ok, %{code: code, from: from_date, to: to_date}}
     end
