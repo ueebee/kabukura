@@ -10,8 +10,8 @@ defmodule Kabukura.DataSources.JQuants.Workers.ListedInfoWorker do
   require Logger
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: _args, meta: meta, attempt: attempt, max_attempts: max_attempts, id: job_id} = _job) do
-    JobLogger.log_job_start(__MODULE__, job_id, _args)
+  def perform(%Oban.Job{args: args, meta: meta, attempt: attempt, max_attempts: max_attempts, id: job_id} = _job) do
+    JobLogger.log_job_start(__MODULE__, job_id, args)
 
     with {:ok, companies} <- fetch_data(%{}),
          :ok <- handle_result({:ok, companies}, meta, attempt, max_attempts) do
