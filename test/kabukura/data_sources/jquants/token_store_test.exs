@@ -2,7 +2,6 @@ defmodule Kabukura.DataSources.JQuants.TokenStoreTest do
   use Kabukura.DataCase
   alias Kabukura.DataSources.JQuants.TokenStore
   alias Kabukura.DataSource
-  alias Plug.Conn
 
   setup do
     bypass = Bypass.open()

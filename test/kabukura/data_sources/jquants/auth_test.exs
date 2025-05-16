@@ -81,7 +81,7 @@ defmodule Kabukura.DataSources.JQuants.AuthTest do
                Auth.get_refresh_token_from_encrypted(encrypted_credentials)
     end
 
-    test "returns error with invalid encrypted credentials", %{bypass: bypass} do
+    test "returns error with invalid encrypted credentials", %{bypass: _bypass} do
       assert {:error, "Invalid credentials format"} = Auth.get_refresh_token_from_encrypted("invalid")
     end
   end
