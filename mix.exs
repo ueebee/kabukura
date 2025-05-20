@@ -62,7 +62,8 @@ defmodule Kabukura.MixProject do
       {:req, "~> 0.5.10"},
       {:bypass, "~> 2.1", only: :test},
       {:oban, "~> 2.19.4"},
-      {:crontab, "~> 1.1"}
+      {:crontab, "~> 1.1"},
+      {:mox, "~> 1.1", only: :test}
     ]
   end
 

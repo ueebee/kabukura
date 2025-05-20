@@ -11,7 +11,7 @@ config :kabukura, Kabukura.Repo,
   hostname: "localhost",
   database: "kabukura_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online() * 2
+  pool_size: 10
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
@@ -27,7 +27,7 @@ config :kabukura, Kabukura.Mailer, adapter: Swoosh.Adapters.Test
 config :swoosh, :api_client, false
 
 # Print only warnings and errors during test
-config :logger, level: :warning
+config :logger, level: :warn
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
@@ -41,3 +41,6 @@ config :kabukura, Oban,
   testing: :inline,
   plugins: false,
   queues: false
+
+# テスト用のListedInfoMockの設定
+config :kabukura, :listed_info_module, Kabukura.DataSources.JQuants.ListedInfoMock

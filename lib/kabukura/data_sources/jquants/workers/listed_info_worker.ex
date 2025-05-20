@@ -32,12 +32,7 @@ defmodule Kabukura.DataSources.JQuants.Workers.ListedInfoWorker do
 
   @impl true
   def fetch_data(_params) do
-    case ListedInfo.get_listed_info() do
-      {:ok, companies} ->
-        {:ok, companies}
-      {:error, reason} ->
-        {:error, reason}
-    end
+    listed_info_module().get_listed_info()
   end
 
   @impl true
@@ -95,5 +90,11 @@ defmodule Kabukura.DataSources.JQuants.Workers.ListedInfoWorker do
   """
   def create_cron_job(cron_expression, opts \\ []) do
     CronJobBuilder.create_cron_job(__MODULE__, cron_expression, %{}, opts)
+  end
+
+  # プライベート関数
+
+  defp listed_info_module do
+    Application.get_env(:kabukura, :listed_info_module, ListedInfo)
   end
 end

@@ -2,6 +2,7 @@ defmodule Kabukura.DataSources.JQuants.ListedInfo do
   @moduledoc """
   J-Quants APIから上場企業情報を取得し、データベースに保存するモジュール
   """
+  @behaviour Kabukura.DataSources.JQuants.ListedInfoBehaviour
 
   alias Kabukura.DataSources.JQuants.HTTP
   alias Kabukura.Company
@@ -14,6 +15,7 @@ defmodule Kabukura.DataSources.JQuants.ListedInfo do
     - `{:ok, companies}` - 成功時、企業情報のリスト
     - `{:error, reason}` - 失敗時、エラー理由
   """
+  @impl true
   def get_listed_info do
     with {:ok, response} <- HTTP.get("/listed/info"),
          {:ok, companies} <- save_companies(response["info"]) do
@@ -31,6 +33,7 @@ defmodule Kabukura.DataSources.JQuants.ListedInfo do
     - `{:ok, companies}` - 成功時、企業情報のリスト
     - `{:error, reason}` - 失敗時、エラー理由
   """
+  @impl true
   def get_listed_info_by_code(code) do
     with {:ok, response} <- HTTP.get("/listed/info?code=#{code}"),
          {:ok, companies} <- save_companies(response["info"]) do
@@ -48,6 +51,7 @@ defmodule Kabukura.DataSources.JQuants.ListedInfo do
     - `{:ok, companies}` - 成功時、企業情報のリスト
     - `{:error, reason}` - 失敗時、エラー理由
   """
+  @impl true
   def get_listed_info_by_date(date) do
     with {:ok, response} <- HTTP.get("/listed/info?date=#{date}"),
          {:ok, companies} <- save_companies(response["info"]) do
